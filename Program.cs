@@ -5,6 +5,7 @@ using Google.Apis.Services;
 using Google.Apis.Util.Store;
 using System;
 using System.Collections.Generic;
+using System.Data.SqlClient;
 using System.IO;
 using System.Threading;
 using System.Text;
@@ -43,7 +44,7 @@ namespace SheetsQuickstart
 
             // Define request parameters.
             String spreadsheetId = "1xeRwJHbs4T10akqx5LNRQHobx7CQe1_C4PTv_mb3I_E";
-            String range = "Sheet1!A1:G";
+            String range = "Sheet1!A2:G";
             SpreadsheetsResource.ValuesResource.GetRequest request =
                     service.Spreadsheets.Values.Get(spreadsheetId, range);
 
@@ -53,17 +54,35 @@ namespace SheetsQuickstart
             IList<IList<Object>> values = response.Values;
             if (values != null && values.Count > 0)
             {
-                Console.WriteLine($"Row Count = {values.Count}");
-                foreach (var row in values)
-                {
-                    StringBuilder sb = new StringBuilder();
-                    foreach (var item in row)
-                    {
-                        sb.Append($"{item} | ");
-                    }
+                List<DriverModel> drivers = DriverModel.Convert(values);
 
-                    sb.AppendLine();
-                    Console.WriteLine(sb);
+                using (var conn = new SqlConnection("Data Source=localhost;Initial Catalog=playground;Integrated Security=True"))
+                {
+                    foreach (var driver in drivers)
+                    {
+                        SqlCommand insert = new SqlCommand("insert into Drivers(DriverID, PayPeriod, Qualify, PaperWork, Expiration, Complaint, UpdateTime) " +
+                                                           "values(@driverId, @payPeriod, @qualify, @paperWork, @expiration, @complaint, @updateTime)", conn);
+                        insert.Parameters.AddWithValue("@driverId", driver.DriverID);
+                        insert.Parameters.AddWithValue("@payPeriod", driver.PayPeriod);
+                        insert.Parameters.AddWithValue("@qualify", driver.Qualify);
+                        insert.Parameters.AddWithValue("@paperWork", driver.PaperWork);
+                        insert.Parameters.AddWithValue("@expiration", driver.Expiration);
+                        insert.Parameters.AddWithValue("@complaint", driver.Complaint);
+                        insert.Parameters.AddWithValue("@updateTime", driver.UpdateTime);
+                        try
+                        {
+                            conn.Open();
+                            insert.ExecuteNonQuery();
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error inserting record for {driver.DriverID} - {ex.Message}");
+                        }
+                        finally
+                        {
+                            conn.Close();
+                        }
+                    }
                 }
             }
             else
